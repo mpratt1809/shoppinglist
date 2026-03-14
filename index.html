@@ -351,18 +351,17 @@ function renderContent(){
 
 function renderHistoryHTML(availHistory){
   if(!availHistory.length) return`<div class="empty-state"><div class="icon">🕐</div><h3>No history yet</h3><p>Items you add will show up here.</p></div>`;
-  return`<p style="font-size:13px;color:var(--text-dim);margin-bottom:16px">Tap to add back to list.</p>
+  return`<p style="font-size:13px;color:var(--text-dim);margin-bottom:16px">Tap any item to add it back to your list.</p>
     ${availHistory.map(h=>{
       const store=STORE_MAP[h.store]||STORE_MAP["any"],cat=CAT_MAP[h.category]||CAT_MAP["other"];
       return`<div class="history-item" data-hid="${h.id}">
         <div class="history-item-top">
           <span class="history-name">${esc(h.name)}${h.qty?` <span style="color:var(--text-dim)">(${esc(h.qty)})</span>`:""}</span>
-          <span class="history-add">+ Add</span>
+          <button class="item-del" data-hdel="${h.id}" style="flex-shrink:0;opacity:1;font-size:14px;padding:4px 8px;background:rgba(255,92,92,0.15);border:1px solid rgba(255,92,92,0.3);border-radius:8px;color:#ff5c5c;margin-left:6px">🗑</button>
         </div>
         <div class="history-item-bottom">
           <span class="item-cat ${cat.css}" style="font-size:10px;padding:2px 7px;border-radius:6px">${cat.label}</span>
           <span class="history-store">${store.emoji} ${store.label}</span>
-          <button class="item-del" data-hdel="${h.id}" style="margin-left:auto;opacity:0.5;font-size:16px;padding:2px 6px">🗑</button>
         </div>
       </div>`;
     }).join("")}`;
