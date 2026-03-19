@@ -97,6 +97,11 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--teal)!im
 .filter-pill{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text-dim);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);transition:all 0.2s}
 .filter-pill:hover{border-color:var(--border2);color:var(--text)}
 .filter-pill.active{background:var(--teal);color:#0a0a0f;border-color:var(--teal)}
+/* Online / Notes items */
+.item-note{font-size:11px;color:#a78bfa;margin-top:3px;font-style:italic;line-height:1.4}
+.note-field-wrap{display:none;margin-top:8px}
+.note-field-wrap.show{display:block}
+.add-note-input{width:100%;padding:9px 14px;border-radius:12px;border:1px solid rgba(167,139,250,0.3);font-size:13px;color:var(--text);font-family:var(--font);background:rgba(167,139,250,0.06);}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--teal);color:#0a0a0f;padding:12px 24px;border-radius:14px;font-size:14px;font-weight:700;z-index:2000;box-shadow:0 8px 30px rgba(45,212,191,0.3);animation:toastIn 0.3s ease;pointer-events:none}
 .skeleton{animation:shimmer 1.5s infinite}
 .skel-bar{height:52px;border-radius:12px;background:var(--card);border:1px solid var(--border);margin-bottom:8px}
@@ -138,6 +143,7 @@ const STORES = [
   {id:"any",label:"Any Store",emoji:"🏪"},{id:"costco",label:"Costco",emoji:"🏬"},
   {id:"heb",label:"HEB",emoji:"🛒"},{id:"wholefoods",label:"Whole Foods",emoji:"🥑"},
   {id:"central",label:"Central Market",emoji:"🧀"},
+  {id:"online",label:"Online / Notes",emoji:"🌐"},
 ];
 const CATEGORIES = [
   {id:"produce",label:"Produce",css:"cat-produce"},{id:"dairy",label:"Dairy",css:"cat-dairy"},
@@ -148,10 +154,10 @@ const CATEGORIES = [
 ];
 const STORE_MAP = Object.fromEntries(STORES.map(s=>[s.id,s]));
 const CAT_MAP   = Object.fromEntries(CATEGORIES.map(c=>[c.id,c]));
-const COLORS    = {any:"#94a3b8",costco:"#e53e3e",heb:"#f56565",wholefoods:"#48bb78",central:"#ed8936"};
+const COLORS    = {any:"#94a3b8",costco:"#e53e3e",heb:"#f56565",wholefoods:"#48bb78",central:"#ed8936",online:"#a78bfa"};
 
 let items=[], history=[], synced=false, view="list", filterStore="all", toastTimer=null;
-let fName="", fStore="any", fCat="produce", fQty="";
+let fName="", fStore="any", fCat="produce", fQty="", fNote="";
 
 function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
 
@@ -192,13 +198,17 @@ function patchItemDOM(id){
 function addItem(){
   if(!fName.trim()) return;
   const r=push(ref(db,"shopping/items"));
-  set(r,{name:fName.trim(),store:fStore,category:fCat,qty:fQty||"",done:false,ts:Date.now()});
+  set(r,{name:fName.trim(),store:fStore,category:fCat,qty:fQty||"",note:fNote||"",done:false,ts:Date.now()});
   addToHistory(fName.trim(),fStore,fCat,fQty);
-  fName=""; fQty="";
+  fName=""; fQty=""; fNote="";
   const ni=document.getElementById("addName");
   const qi=document.getElementById("addQty");
+  const noi=document.getElementById("addNote");
   if(ni){ni.value="";ni.focus();}
   if(qi) qi.value="";
+  if(noi) noi.value="";
+  // Hide note field after add if online
+  updateNoteFieldVisibility();
   toast("Added to list!");
 }
 
@@ -308,6 +318,9 @@ function renderContent(){
       <select class="add-sel" id="addStore">${STORES.map(s=>`<option value="${s.id}"${fStore===s.id?" selected":""}>${s.emoji} ${s.label}</option>`).join("")}</select>
       <select class="add-sel" id="addCat">${CATEGORIES.map(c=>`<option value="${c.id}"${fCat===c.id?" selected":""}>${c.label}</option>`).join("")}</select>
     </div>
+    <div class="note-field-wrap${fStore==="online"?" show":""}" id="noteFieldWrap">
+      <input class="add-note-input" id="addNote" placeholder="📝 Note or reminder (e.g. check Amazon, size L, subscribe & save…)" value="${esc(fNote)}"/>
+    </div>
   </div>`;
 
   const filters=activeStores.length>1?`<div class="filter-row">
@@ -369,6 +382,7 @@ function renderHistoryHTML(availHistory){
 
 function itemRowHTML(item){
   const cat=CAT_MAP[item.category]||CAT_MAP["other"];
+  const isOnline=item.store==="online";
   return`<div class="item-row${item.done?" checked":""}" data-id="${item.id}">
     <div class="item-check${item.done?" done":""}" data-toggle="${item.id}">${item.done?"✓":""}</div>
     <div class="item-body">
@@ -377,9 +391,15 @@ function itemRowHTML(item){
         <span class="item-cat ${cat.css}">${cat.label}</span>
         ${item.qty?`<span class="item-qty">Qty: ${esc(item.qty)}</span>`:""}
       </div>
+      ${item.note?`<div class="item-note">📝 ${esc(item.note)}</div>`:""}
     </div>
     <button class="item-del" data-del="${item.id}">🗑</button>
   </div>`;
+}
+
+function updateNoteFieldVisibility(){
+  const wrap=document.getElementById("noteFieldWrap");
+  if(wrap) wrap.classList.toggle("show", fStore==="online");
 }
 
 function bindContent(){
@@ -391,7 +411,8 @@ function bindContent(){
     ni.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addItem();}});
   }
   document.getElementById("addQty")?.addEventListener("input",e=>{fQty=e.target.value;});
-  document.getElementById("addStore")?.addEventListener("change",e=>{fStore=e.target.value;});
+  document.getElementById("addNote")?.addEventListener("input",e=>{fNote=e.target.value;});
+  document.getElementById("addStore")?.addEventListener("change",e=>{fStore=e.target.value;updateNoteFieldVisibility();});
   document.getElementById("addCat")?.addEventListener("change",e=>{fCat=e.target.value;});
   document.getElementById("btnAdd")?.addEventListener("click",addItem);
   document.getElementById("btnClear")?.addEventListener("click",clearDone);
